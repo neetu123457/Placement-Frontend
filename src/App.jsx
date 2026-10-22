@@ -5,6 +5,7 @@ import Register from "./components/register";
 import Home from "./components/home";
 import MainLayout from "./pages/MainLayout";
 import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
         <Route path="/dashboard" element={<MainLayout />} />
 
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
       </Routes>
     </BrowserRouter>

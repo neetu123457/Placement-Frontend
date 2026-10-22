@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./Coding.css";
+import { apiRequest } from "../utils/api";
 
 const problems = [
   {
@@ -162,28 +163,90 @@ export default function Coding() {
   const [drafts, setDrafts] = useState({});
   const [showHint, setShowHint] = useState(false);
   const [solved, setSolved] = useState([]);
+  const [progressLoaded, setProgressLoaded] = useState(false);
+  const [resumingSession, setResumingSession] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
+  const saveQueue = useRef(Promise.resolve());
+
+  useEffect(() => {
+    apiRequest("/practice/progress")
+      .then((progress) => {
+        setSolved(
+          (progress.codingSolved || [])
+            .map((title) => problems.findIndex((item) => item.title === title))
+            .filter((problemId) => problemId >= 0)
+        );
+        setDrafts(progress.codingDrafts || {});
+        const savedProblemIndex = problems.findIndex(
+          (item) => item.title === progress.codingSession?.currentProblem
+        );
+        if (savedProblemIndex >= 0) {
+          setProblemIndex(savedProblemIndex);
+          setResumingSession(true);
+        }
+        if (languages.includes(progress.codingSession?.language)) {
+          setLanguage(progress.codingSession.language);
+        }
+      })
+      .catch((error) => setSaveStatus(error.message))
+      .finally(() => setProgressLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!progressLoaded) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      persistProgress(problemIndex, language, drafts, solved);
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [drafts, language, problemIndex, progressLoaded, solved]);
 
   const problem = problems[problemIndex];
-  const draftKey = `${problemIndex}-${language}`;
+  const draftKey = `${problem.title}-${language}`;
   const code = drafts[draftKey] ?? problem.starter[language];
 
   function changeProblem(index) {
     setProblemIndex(index);
     setShowHint(false);
+    persistProgress(index, language, drafts, solved);
+  }
+
+  function changeLanguage(nextLanguage) {
+    setLanguage(nextLanguage);
+    persistProgress(problemIndex, nextLanguage, drafts, solved);
+  }
+
+  function persistProgress(activeProblemIndex, activeLanguage, currentDrafts, currentSolved) {
+    const save = saveQueue.current.then(() => apiRequest("/practice/coding", {
+      method: "PUT",
+      body: JSON.stringify({
+        solvedProblemIds: currentSolved.map((id) => problems[id].title),
+        drafts: currentDrafts,
+        currentProblem: problems[activeProblemIndex].title,
+        language: activeLanguage,
+      }),
+    }));
+    saveQueue.current = save.catch(() => {});
+    save
+      .then(() => setSaveStatus("Progress saved to your account."))
+      .catch((error) => setSaveStatus(error.message));
   }
 
   function toggleSolved() {
-    setSolved((previous) =>
-      previous.includes(problemIndex)
-        ? previous.filter((item) => item !== problemIndex)
-        : [...previous, problemIndex]
-    );
+    const nextSolved = solved.includes(problemIndex)
+      ? solved.filter((item) => item !== problemIndex)
+      : [...solved, problemIndex];
+    setSolved(nextSolved);
+    persistProgress(problemIndex, language, drafts, nextSolved);
   }
 
   return (
     <div className="coding-page">
       <div className="practice-heading">
-    
+        {resumingSession && (
+          <p role="status">Resuming your saved work on {problem.title}.</p>
+        )}
         <p>
           Practice important programming questions, improve problem-solving
           skills, and prepare for placement coding rounds.
@@ -217,6 +280,7 @@ export default function Coding() {
                   ? "problem-item active"
                   : "problem-item"
               }
+              disabled={!progressLoaded}
               onClick={() => changeProblem(index)}
             >
               <span className="problem-number">
@@ -269,7 +333,8 @@ export default function Coding() {
             <select
               id="coding-language"
               value={language}
-              onChange={(event) => setLanguage(event.target.value)}
+              disabled={!progressLoaded}
+              onChange={(event) => changeLanguage(event.target.value)}
             >
               {languages.map((item) => (
                 <option key={item} value={item}>
@@ -284,18 +349,21 @@ export default function Coding() {
             aria-label="Write your solution"
             spellCheck={false}
             value={code}
+            disabled={!progressLoaded}
             onChange={(event) =>
               setDrafts((previous) => ({
                 ...previous,
                 [draftKey]: event.target.value,
               }))
             }
+            onBlur={() => persistProgress(problemIndex, language, drafts, solved)}
           />
 
           <div className="coding-actions">
             <button
               type="button"
               className="mark-solved-button"
+              disabled={!progressLoaded}
               onClick={toggleSolved}
             >
               {solved.includes(problemIndex)
@@ -306,7 +374,7 @@ export default function Coding() {
             <div className="problem-navigation">
               <button
                 type="button"
-                disabled={problemIndex === 0}
+                disabled={!progressLoaded || problemIndex === 0}
                 onClick={() => changeProblem(problemIndex - 1)}
               >
                 ← Previous
@@ -314,7 +382,7 @@ export default function Coding() {
 
               <button
                 type="button"
-                disabled={problemIndex === problems.length - 1}
+                disabled={!progressLoaded || problemIndex === problems.length - 1}
                 onClick={() => changeProblem(problemIndex + 1)}
               >
                 Next →
@@ -323,9 +391,8 @@ export default function Coding() {
           </div>
 
           <p className="editor-note">
-            Your code remains available while this page is open. This editor
-            does not run or test code. Code execution requires a connected
-            backend or code-execution service.
+            {progressLoaded ? saveStatus : "Loading your saved progress..."}
+            {" "}This editor does not run or test code.
           </p>
         </section>
       </div>

@@ -1,19 +1,38 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import "../App.css";
 import AptitudeCoding from "../pages/AptitudeCoding";
 import Coding from "../pages/Coding";
+import ProgressTracker from "../pages/ProgressTracker";
+import generateAgentResponse, { loadChatHistory } from "../utils/agent";
+import { useAuth } from "../context/useAuth";
 
 const navigation = [
   { id: "dashboard", icon: "⌂", label: "Dashboard" },
+  { id: "aptitude", icon: "🧠", label: "Aptitude Practice" },
+  { id: "coding", icon: "💻", label: "Coding Practice" },
   { id: "mock-interview", icon: "🎤", label: "Mock Interview" },
   { id: "resume", icon: "📄", label: "Resume Analyzer" },
   { id: "roadmap", icon: "🗺", label: "Placement Roadmap" },
-  { id: "aptitude", icon: "🧠", label: "Aptitude Practice" },
-  { id: "coding", icon: "💻", label: "Coding Practice" },
   { id: "progress", icon: "📊", label: "My Progress" },
 ];
 
 const preparationModules = [
+  {
+    id: "aptitude",
+    icon: "🧠",
+    title: "Aptitude Practice",
+    description:
+      "Practice quantitative aptitude, logical reasoning and verbal ability.",
+    button: "Start Practice",
+  },
+  {
+    id: "coding",
+    icon: "💻",
+    title: "Coding Practice",
+    description:
+      "Prepare for coding rounds using problem-solving patterns and programming questions.",
+    button: "Practice Coding",
+  },
   {
     id: "mock-interview",
     icon: "🎤",
@@ -39,24 +58,19 @@ const preparationModules = [
     button: "View Roadmap",
   },
   {
-    id: "aptitude",
-    icon: "🧠",
-    title: "Aptitude Practice",
+    id: "progress",
+    icon: "📊",
+    title: "My Progress",
     description:
-      "Practice quantitative aptitude, logical reasoning and verbal ability.",
-    button: "Start Practice",
-  },
-  {
-    id: "coding",
-    icon: "💻",
-    title: "Coding Practice",
-    description:
-      "Prepare for coding rounds using problem-solving patterns and programming questions.",
-    button: "Practice Coding",
+      "Review your completed aptitude practice and solved coding problems.",
+    button: "View Progress",
   },
 ];
 
 export function MainLayout() {
+  const { user } = useAuth();
+  const displayName = user?.name?.trim() || "Student";
+  const displayInitial = displayName.charAt(0).toUpperCase() || "U";
   const [activePage, setActivePage] = useState("dashboard");
   const [agentOpen, setAgentOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -66,6 +80,19 @@ export function MainLayout() {
     },
   ]);
   const [agentInput, setAgentInput] = useState("");
+
+  useEffect(() => {
+    loadChatHistory()
+      .then((history) => {
+        if (history.length) {
+          setMessages(history.map((message) => ({
+            sender: message.role === "user" ? "user" : "agent",
+            text: message.content,
+          })));
+        }
+      })
+      .catch((error) => console.error("Chat history error:", error));
+  }, []);
 
   const currentPage =
     navigation.find((item) => item.id === activePage) || navigation[0];
@@ -89,7 +116,6 @@ export function MainLayout() {
 
     const answer = await generateAgentResponse(
       question,
-      activePage,
       chatHistory
     );
 
@@ -157,9 +183,9 @@ export function MainLayout() {
           </div>
 
           <div className="profile-mini">
-            <div className="avatar">U</div>
+            <div className="avatar">{displayInitial}</div>
             <div className="profile-details">
-              <strong>Student</strong>
+              <strong>{displayName}</strong>
               <span>Placement Candidate</span>
             </div>
           </div>
@@ -190,9 +216,9 @@ export function MainLayout() {
             </button>
 
             <div className="top-profile">
-              <div className="avatar">U</div>
+              <div className="avatar">{displayInitial}</div>
               <div>
-                <strong>Student</strong>
+                <strong>{displayName}</strong>
                 <span>Placement Candidate</span>
               </div>
             </div>
@@ -206,6 +232,8 @@ export function MainLayout() {
           <AptitudeCoding />
         ) : activePage === "coding" ? (
           <Coding />
+        ) : activePage === "progress" ? (
+          <ProgressTracker />
         ) : (
           <ModulePage activePage={activePage} />
         )}
@@ -440,63 +468,6 @@ function ModulePage({ activePage }) {
       </div>
     </div>
   );
-}
-
-async function generateAgentResponse(
-  question,
-  activePage,
-  chatHistory = []
-) {
-  const currentMessage = activePage
-    ? `[Context: User is on ${activePage} page] ${question}`
-    : question;
-
-  const messages = [
-    ...chatHistory,
-    { role: "user", content: currentMessage },
-  ];
-
-  try {
-    const response = await fetch("http://localhost:5000/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ messages }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-
-      throw new Error(
-        errorData.error || `HTTP Status ${response.status}`
-      );
-    }
-
-    if (!response.body) {
-      throw new Error("Response body is empty.");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullResponse = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) break;
-
-      fullResponse += decoder.decode(value, { stream: true });
-    }
-
-    fullResponse += decoder.decode();
-
-    return fullResponse.trim();
-  } catch (error) {
-    console.error("FRONTEND FETCH ERROR:", error);
-
-    return "I'm your placement preparation assistant 🤖. I couldn't reach the backend server right now. Please check that your backend is running and try again.";
-  }
 }
 
 export default MainLayout;

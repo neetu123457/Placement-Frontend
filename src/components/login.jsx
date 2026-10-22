@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
+import { apiRequest } from "../utils/api";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [serverError, setServerError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const { login } = useAuth();
 
   const validate = () => {
     const newErrors = {};
@@ -27,23 +32,28 @@ function Login() {
     return Object.keys(newErrors).length === 0;
   };
 
- const navigate = useNavigate();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-const handleLogin = (e) => {
-  e.preventDefault();
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setServerError("");
+    if (!validate()) return;
 
-  // First validate the fields
-  if (!validate()) {
-    return;
-  }
-
-  // Check login credentials
-  if (email === "kle@gmail.com" && password === "12345678") {
-    navigate("/dashboard");
-  } else {
-    alert("Invalid email or password");
-  }
-};
+    setSubmitting(true);
+    try {
+      const data = await apiRequest("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      login(data.token, data.user);
+      navigate("/dashboard");
+    } catch (error) {
+      setServerError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -61,6 +71,10 @@ const handleLogin = (e) => {
             <p className="login-description">
               Enter your account details
             </p>
+
+            {location.state?.registered && (
+              <p role="status">Account created. Sign in to continue.</p>
+            )}
 
            <form onSubmit={handleLogin} autoComplete="off">
 
@@ -150,8 +164,10 @@ const handleLogin = (e) => {
               </div>
 
               {/* LOGIN BUTTON */}
-              <button type="submit" className="login-button">
-                Login
+              {serverError && <p className="error" role="alert">{serverError}</p>}
+
+              <button type="submit" className="login-button" disabled={submitting}>
+                {submitting ? "Signing in..." : "Login"}
               </button>
 
             </form>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { apiRequest } from "../utils/api";
 
 import "./forgotpassword.css";
 
@@ -7,12 +8,15 @@ function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [resetUrl, setResetUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     setError("");
     setMessage("");
+    setResetUrl("");
 
     if (!email.trim()) {
       setError("Email address is required");
@@ -24,12 +28,19 @@ function ForgotPassword() {
       return;
     }
 
-    // For now, display a success message.
-    // Later, this can be connected to your backend
-    // to send an actual password reset email.
-    setMessage(
-      "If an account exists with this email, a password reset link will be sent."
-    );
+    setSubmitting(true);
+    try {
+      const data = await apiRequest("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      setMessage(data.message);
+      setResetUrl(data.resetUrl || "");
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -99,12 +110,19 @@ function ForgotPassword() {
             </p>
           )}
 
+          {resetUrl && (
+            <p className="forgot-success">
+              Development reset link: <a href={resetUrl}>Reset password</a>
+            </p>
+          )}
+
           {/* Reset Button */}
           <button
             type="submit"
             className="forgot-button"
+            disabled={submitting}
           >
-            <span>Send Reset Link</span>
+            <span>{submitting ? "Requesting..." : "Send Reset Link"}</span>
             <span className="forgot-arrow">→</span>
           </button>
 

@@ -19,7 +19,6 @@ const chat = () => {
     // Call your agent function
     await generateAgentResponse(
       input,
-      "ChatPage", // or whatever page context you want
       newMessages,
       (chunk, fullResponse) => {
         // Update UI as chunks arrive

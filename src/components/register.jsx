@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { apiRequest } from "../utils/api";
+import { useAuth } from "../context/useAuth";
 
 import "./register.css";
 
 function Register() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,6 +17,8 @@ function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const validate = () => {
     const newErrors = {};
@@ -30,8 +35,8 @@ function Register() {
 
     if (!password) {
       newErrors.password = "Password is required";
-    } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
     }
 
     if (!confirmPassword) {
@@ -45,15 +50,25 @@ function Register() {
     return Object.keys(newErrors).length === 0;
   };
 
- const handleRegister = (e) => {
-  e.preventDefault();
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setServerError("");
+    if (!validate()) return;
 
-  if (!validate()) {
-    return;
-  }
-
-  navigate("/dashboard");
-};
+    setSubmitting(true);
+    try {
+      const data = await apiRequest("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password }),
+      });
+      login(data.token, data.user);
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      setServerError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="register-page">
@@ -221,11 +236,14 @@ function Register() {
           </label>
 
           {/* Register Button */}
+          {serverError && <p className="register-error" role="alert">{serverError}</p>}
+
           <button
             type="submit"
             className="register-button"
+            disabled={submitting}
           >
-            <span>Create Account</span>
+            <span>{submitting ? "Creating account..." : "Create Account"}</span>
             <span className="register-arrow">→</span>
           </button>
 

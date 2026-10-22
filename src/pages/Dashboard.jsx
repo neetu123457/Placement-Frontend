@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./Dashboard.css";
+import { clearConversationId } from "../utils/agent";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -79,6 +80,7 @@ function Dashboard() {
 
   const logout = () => {
     localStorage.removeItem("token");
+    clearConversationId();
     window.location.href = "/login";
   };
 

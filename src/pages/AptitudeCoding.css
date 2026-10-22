@@ -28,6 +28,16 @@
   margin: 0;
 }
 
+.aptitude-status {
+  margin: 12px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.aptitude-status.error {
+  color: #b91c1c;
+}
+
 .aptitude-topics {
   display: flex;
   flex-wrap: wrap;
